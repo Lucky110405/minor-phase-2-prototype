@@ -8,50 +8,54 @@ from pymongo import MongoClient
 from dotenv import load_dotenv
 from langchain_mongodb import MongoDBAtlasVectorSearch
 from langchain_community.document_loaders import TextLoader
+from typing import List, Tuple
 
-# Configuration
+# Load environment variables
 load_dotenv()
 
 # Initialize session state
 if 'rag_chain' not in st.session_state:
     st.session_state.rag_chain = None
-    
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history: List[Tuple[str, str]] = []
+if 'uploaded_files' not in st.session_state:
+    st.session_state.uploaded_files = []
+
 def init_components():
-    # Set up embeddings
-    embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/text-embedding-004",
-        google_api_key=os.getenv("GOOGLE_API_KEY")
-    )
-    
-    # MongoDB connection
-    client = MongoClient(os.getenv("MONGO_URI"))
-    collection = client[os.getenv("DB_NAME")][os.getenv("COLLECTION_NAME")]
-    
-    # Create vector store
-    vector_store = MongoDBAtlasVectorSearch(
-        collection=collection,
-        embedding=embeddings,
-        index_name=os.getenv("INDEX_NAME")
-    )
-    
-    # Initialize LLM
-    llm = ChatGoogleGenerativeAI(
-        model="learnlm-1.5-pro-experimental",
-        google_api_key=os.getenv("GOOGLE_API_KEY"),
-        temperature=0.1
-    )
-    
-    return vector_store, llm
+    """Initialize vector store and LLM components"""
+    try:
+        embeddings = GoogleGenerativeAIEmbeddings(
+            model="models/text-embedding-004",
+            google_api_key=os.getenv("GOOGLE_API_KEY")
+        )
+        
+        client = MongoClient(os.getenv("MONGO_URI"))
+        collection = client[os.getenv("DB_NAME")][os.getenv("COLLECTION_NAME")]
+        
+        vector_store = MongoDBAtlasVectorSearch(
+            collection=collection,
+            embedding=embeddings,
+            index_name=os.getenv("INDEX_NAME")
+        )
+        
+        llm = ChatGoogleGenerativeAI(
+            model="learnlm-1.5-pro-experimental",
+            google_api_key=os.getenv("GOOGLE_API_KEY"),
+            temperature=0.1
+        )
+        
+        return vector_store, llm
+    except Exception as e:
+        st.error(f"Initialization failed: {str(e)}")
+        return None, None
 
 def create_rag_chain(vector_store, llm):
+    """Create RAG processing chain"""
     template = """{context}
 
 ---
-
 Given the context above, answer the question as best as possible.
-
 Question: {question}
-
 Answer: """
     
     prompt = PromptTemplate.from_template(template)
@@ -60,29 +64,116 @@ Answer: """
     def format_docs(docs):
         return "\n\n".join(doc.page_content for doc in docs)
     
-    rag_chain = (
+    return (
         {"context": retriever | format_docs, "question": RunnablePassthrough()}
         | prompt
         | llm
         | StrOutputParser()
     )
+
+def process_uploaded_files(vector_store):
+    """Process and ingest uploaded files"""
+    for uploaded_file in st.session_state.uploaded_files:
+        if uploaded_file.name.endswith('.txt'):
+            with st.spinner(f"Processing {uploaded_file.name}..."):
+                try:
+                    # Save uploaded file temporarily
+                    with open(uploaded_file.name, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+                    
+                    # Load and ingest documents
+                    loader = TextLoader(uploaded_file.name)
+                    documents = loader.load()
+                    vector_store.add_documents(documents)
+                    st.success(f"Ingested {len(documents)} documents from {uploaded_file.name}")
+                    
+                    # Clean up temporary file
+                    os.remove(uploaded_file.name)
+                except Exception as e:
+                    st.error(f"Error processing {uploaded_file.name}: {str(e)}")
+
+# Streamlit UI Configuration
+st.set_page_config(
+    page_title="RAG-Based Personalized Financial Advisory System",
+    page_icon="🤖",
+    layout="wide"
+)
+
+# Sidebar for document upload
+with st.sidebar:
+    st.header("Configuration")
+    st.subheader("Document Management")
     
-    return rag_chain
+    uploaded_files = st.file_uploader(
+        "Upload documents (TXT)",
+        type=["txt"],
+        accept_multiple_files=True,
+        key="file_uploader"
+    )
+    
+    if uploaded_files:
+        st.session_state.uploaded_files = uploaded_files
+    
+    if st.button("Initialize/Update RAG System"):
+        with st.status("Initializing system...", expanded=True) as status:
+            st.write("Connecting to database...")
+            vector_store, llm = init_components()
+            
+            if vector_store and llm:
+                st.write("Processing documents...")
+                process_uploaded_files(vector_store)
+                
+                st.write("Creating RAG chain...")
+                st.session_state.rag_chain = create_rag_chain(vector_store, llm)
+                status.update(label="System ready!", state="complete")
+                st.session_state.chat_history = []
+            else:
+                status.update(label="Initialization failed", state="error")
 
-# Streamlit UI
-st.title("RAG Chat Interface")
+# Main chat interface
+st.title("RAG-Based Personalized Financial Advisory System")
+st.markdown("""
+    <style>
+        .chat-message {
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            display: flex;
+        }
+        .user-message {
+            background-color: #f0f2f6;
+            margin-left: 20%;
+        }
+        .assistant-message {
+            background-color: #e3f2fd;
+            margin-right: 20%;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-# Initialize RAG chain if not already done
-if st.session_state.rag_chain is None:
-    with st.spinner("Initializing RAG system..."):
-        vector_store, llm = init_components()
-        st.session_state.rag_chain = create_rag_chain(vector_store, llm)
-    st.success("RAG system initialized!")
+# Chat history display
+for role, message in st.session_state.chat_history:
+    with st.chat_message(name=role):
+        st.markdown(message)
 
-# Chat interface
-query = st.text_input("Ask a question:")
-if st.button("Submit"):
-    if query:
-        with st.spinner("Generating response..."):
-            response = st.session_state.rag_chain.invoke(query)
-            st.write("Answer:", response)
+# Chat input
+if prompt := st.chat_input("Ask your question..."):
+    if not st.session_state.rag_chain:
+        st.error("Please initialize the RAG system first by uploading documents and clicking 'Initialize System'")
+    else:
+        # Add user question to chat history
+        st.session_state.chat_history.append(("user", prompt))
+        
+        # Display user message
+        with st.chat_message("user"):
+            st.markdown(prompt)
+        
+        # Generate and display response
+        with st.chat_message("assistant"):
+            with st.spinner("Analyzing documents..."):
+                try:
+                    response = st.session_state.rag_chain.invoke(prompt)
+                    st.markdown(response)
+                    st.session_state.chat_history.append(("assistant", response))
+                except Exception as e:
+                    st.error(f"Error generating response: {str(e)}")
