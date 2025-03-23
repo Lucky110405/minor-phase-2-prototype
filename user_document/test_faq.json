@@ -1,0 +1,41 @@
+{
+    "faqs": [
+      {
+        "question": "What documents are required to open a savings account?",
+        "answer": "To open a savings account, you need to submit identity proof, address proof, and recent passport-sized photographs. Examples of valid documents include a passport, Aadhaar card, or utility bills."
+      },
+      {
+        "question": "Can I transfer my current account to another branch?",
+        "answer": "Yes, current accounts can be transferred from one branch to another. However, there may be certain restrictions. Please visit your nearest branch for details."
+      },
+      {
+        "question": "What should I do if my debit card is lost or stolen?",
+        "answer": "If your debit card is lost or stolen, immediately contact the bank's customer service or visit the nearest branch to report the loss. The card will be blocked, and a new one will be issued."
+      },
+      {
+        "question": "How can I check my account balance?",
+        "answer": "You can check your account balance through online banking, mobile banking, ATM, or by visiting your nearest branch."
+      },
+      {
+        "question": "What is the daily withdrawal limit for a debit card?",
+        "answer": "The daily withdrawal limit for a debit card typically ranges from Rs. 25,000 to Rs. 1,00,000, depending on the type of card and the bank's policy."
+      },
+      {
+        "question": "Can I open a joint savings account?",
+        "answer": "Yes, you can open a joint savings account with another individual, such as a family member or spouse. Both account holders will have equal access to the account."
+      },
+      {
+        "question": "What is the minimum balance required for a savings account?",
+        "answer": "The minimum balance requirement varies depending on the type of savings account and the bank. It can range from zero balance to Rs. 10,000 or more."
+      },
+      {
+        "question": "How do I activate my new debit card?",
+        "answer": "You can activate your new debit card by using it at an ATM with a withdrawal or balance inquiry, or by logging into your online banking account and following the activation instructions."
+      },
+      {
+        "question": "What should I do if I forget my ATM PIN?",
+        "answer": "If you forget your ATM PIN, you can request a new one by contacting the bank's customer service or through the online banking portal. A new PIN will be sent to your registered"
+      }
+    ]
+}
+      
