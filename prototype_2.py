@@ -14,7 +14,7 @@ from langchain_mongodb import MongoDBAtlasVectorSearch
 load_dotenv()
 
 # Configuration
-OPENROUTER_DEEPSEEK_API_KEY = os.getenv("OPENROUTER_DEEPSEEK_API_KEY")
+OPENROUTER_GEMMA_API_KEY = os.getenv("OPENROUTER_GEMMA_API_KEY")
 BASE_URL="https://openrouter.ai/api/v1"
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
@@ -39,21 +39,21 @@ class OpenRouterLLM:
             prompt = prompt.to_string()
         
         try:
+            print(f"Sending request to API...")
             response = requests.post(
-                f"{BASE_URL}/chat/completions",  # Updated endpoint
+                f"{BASE_URL}/chat/completions",
                 headers=self.headers,
                 json={
-                    "model": "deepseek/deepseek-r1-zero:free",
+                    "model": "google/gemma-3-4b-it:free",
                     "messages": [{"role": "user", "content": str(prompt)}],
                     "temperature": self.temperature,
-                    "max_tokens": 1000,  # Add max tokens parameter
-                    "stream": False  # Ensure we get complete response
+                    "max_tokens": 1000,
+                    "stream": False
                 }
             )
 
             # Print response for debugging
             print(f"API Response Status: {response.status_code}")
-            print(f"API Response Headers: {response.headers}")
             
             # Add response validation
             if response.status_code != 200:
@@ -66,15 +66,10 @@ class OpenRouterLLM:
             if not response_json.get("choices"):
                 print(f"Unexpected API response format: {response_json}")
                 return "Sorry, received an unexpected response format."
-                
+
+            content = response_json["choices"][0]["message"]["content"]
+            print(f"Response: {content}")   
             # Extract the message content safely
-            try:
-                content = response_json["choices"][0]["message"]["content"]
-                return content.strip()
-            except (KeyError, IndexError) as e:
-                print(f"Error extracting content from response: {e}")
-                print(f"Response structure: {response_json}")
-                return "Sorry, couldn't extract the response content."
             
         except Exception as e:
             print(f"Error calling OpenRouter API: {e}")
@@ -101,7 +96,7 @@ def init_components():
     )
     
     # Initialize LLM
-    llm = OpenRouterLLM(api_key=OPENROUTER_DEEPSEEK_API_KEY)
+    llm = OpenRouterLLM(api_key=OPENROUTER_GEMMA_API_KEY)
     return vector_store, llm
 
 # Create default JSON file if user doesnt give any data
@@ -146,7 +141,6 @@ def create_rag_chain(vector_store, llm, user_data):
     
     """Create chain with user data context"""
     template = """You are a professional financial advisor. Based on standard banking practices and financial prudence, provide a clear financial advice in simple plain text format.
-DO NOT use any special formatting, LaTeX commands, or symbols.
 
 Current Financial Information of client:
 {user_data}
@@ -154,17 +148,9 @@ Current Financial Information of client:
 Context from Knowledge Base:
 {context}
 
-
-Please analyze and provide advice considering:
-1. Standard debt-to-income ratio (50% max)
-2. Typical car loan terms (5-7 years)
-3. Current market interest rates (8-12%)
-4. Monthly repayment capacity
-5. Financial prudence and risk assessment
-
 Question: {question}
 
-Provide a detailed but concise response with clear recommendations:"""
+Provide a detailed but concise response with clear recommendations in PLAIN TEXT ONLY:"""
     
     prompt = PromptTemplate.from_template(template)
     retriever = vector_store.as_retriever(search_kwargs={"k": 4})
