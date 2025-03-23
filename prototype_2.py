@@ -68,8 +68,8 @@ class OpenRouterLLM:
                 return "Sorry, received an unexpected response format."
 
             content = response_json["choices"][0]["message"]["content"]
-            print(f"Response: {content}")   
             # Extract the message content safely
+            return content
             
         except Exception as e:
             print(f"Error calling OpenRouter API: {e}")
