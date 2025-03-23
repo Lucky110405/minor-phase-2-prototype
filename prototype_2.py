@@ -1,4 +1,3 @@
-
 import os
 import json
 from dotenv import load_dotenv
@@ -105,21 +104,42 @@ def init_components():
     llm = OpenRouterLLM(api_key=OPENROUTER_DEEPSEEK_API_KEY)
     return vector_store, llm
 
+# Create default JSON file if user doesnt give any data
+def create_default_json(file_path):
+    """Create a default JSON file with empty structure"""
+    default_data = {
+        "status": "general_mode",
+        "message": "No user data provided - using general advisory mode"
+    }
+    
+    try:
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(default_data, f, indent=4)
+        return default_data
+    except Exception as e:
+        print(f"Error creating default JSON: {e}")
+        return None
+
 # Read user data
 def read_user_data(file_path):
-    """Read user data from JSON file"""
+    """Read user data from JSON file or create default"""
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
-            return json.load(file)
+            data = json.load(file)
+            # If file exists but is empty, create default
+            if not data:
+                return create_default_json(file_path)
+            return data
     except FileNotFoundError:
-        print(f"File not found: {file_path}")
-        return None
+        print("No user data file found. Creating default template...")
+        return create_default_json(file_path)
     except json.JSONDecodeError:
-        print(f"Invalid JSON format in file: {file_path}")
-        return None
+        print("Invalid JSON format. Creating new default template...")
+        return create_default_json(file_path)
     except Exception as e:
-        print(f"Error reading file: {e}")
-        return None
+        print(f"Error reading file: {e}. Using default template...")
+        return create_default_json(file_path)
 
 # RAG chain setup
 def create_rag_chain(vector_store, llm, user_data):
@@ -149,8 +169,15 @@ Provide a detailed but concise response with clear recommendations:"""
     prompt = PromptTemplate.from_template(template)
     retriever = vector_store.as_retriever(search_kwargs={"k": 4})
     
+    # Convert user_data to JSON string for template insertion
+    user_data_str = json.dumps(user_data, indent=2)
+    
     rag_chain = (
-        {"context": retriever | format_docs, "question": RunnablePassthrough()}
+        {
+            "context": retriever | format_docs, 
+            "question": RunnablePassthrough(),
+            "user_data": lambda _: user_data_str  # Add user_data as a constant
+        }
         | prompt
         | llm
         | StrOutputParser()
@@ -172,20 +199,31 @@ if __name__ == "__main__":
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(BASE_DIR, "user_document", "test_faq.json")
     
-    # Read user data
+    # This will check if file exists and create a default JSON if not found
     user_data = read_user_data(file_path)
     
-    # Create personalized RAG chain    
+    # Add a message to show if using default or actual user data
+    if user_data.get("status") == "general_mode":
+        print("Using general mode with default settings (no user data found)")
+    else:
+        print("Using personalized mode with user-provided data")
+    
+    # Create RAG chain    
     rag_chain = create_rag_chain(vector_store, llm, user_data)
     
     # Chat interface
     print("RAG Based Financial Advisory System Ready. Type 'exit' to quit.")
+    
     while True:
         query = input("\nQuestion: ")
         if query.lower() == 'exit':
             break
         
-        response = rag_chain.invoke(query)
-        print(f"\nAnswer: {response}")
+        try:
+            response = rag_chain.invoke(query)
+            print(f"\nAdvice: {response}")
+        except Exception as e:
+            print(f"Error processing query: {e}")
+            print("Please try another question.")
 
 
