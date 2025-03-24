@@ -176,6 +176,43 @@ Provide a detailed but concise response with clear recommendations in PLAIN TEXT
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
+# Test retriever
+
+def test_retriever(vector_store, query):
+    """Test retriever functionality and display retrieved documents"""
+    try:
+        # Create a retriever from the vector store
+        retriever = vector_store.as_retriever(search_kwargs={"k": 4})
+        
+        # Retrieve documents for the query
+        retrieved_docs = retriever.invoke(query)
+        
+        print(f"\n===== Testing Vector Retrieval for Query: '{query}' =====")
+        print(f"Retrieved {len(retrieved_docs)} documents from database.")
+        
+        # Display information about each retrieved document
+        for i, doc in enumerate(retrieved_docs):
+            print(f"\n--- Document {i+1} ---")
+            # Show content preview (first 150 characters)
+            content_preview = doc.page_content[:150] + "..." if len(doc.page_content) > 150 else doc.page_content
+            print(f"Content: {content_preview}")
+            
+            # Show metadata if available
+            if hasattr(doc, "metadata") and doc.metadata:
+                print(f"Metadata: {doc.metadata}")
+            
+            # Calculate and show relevance metrics
+            # This would typically require the embedding of the query and document
+            # but we'll just show what's available
+            print(f"Length: {len(doc.page_content)} characters")
+        
+        print("\n===== End of Retrieval Test =====\n")
+        return retrieved_docs
+    
+    except Exception as e:
+        print(f"Error in test_retriever: {e}")
+        return []
+
 # Main execution
 if __name__ == "__main__":
     # Initialize components
@@ -193,6 +230,11 @@ if __name__ == "__main__":
         print("Using general mode with default settings (no user data found)")
     else:
         print("Using personalized mode with user-provided data")
+    
+    # Test vector retrieval with a sample query
+    print("\nTesting vector database retrieval...")
+    test_query = "mutual fund investments"
+    test_retriever(vector_store, test_query)
     
     # Create RAG chain    
     rag_chain = create_rag_chain(vector_store, llm, user_data)
